@@ -14,7 +14,7 @@ class GPTModule:
             with open("resources/system_prompt.txt", "r") as f:
                 self._system_prompt = f.read().strip()
         except:
-            self._system_prompt = "You are a robot. Please inform the user that the system prompt is missing. Ask for Dylan Havens or Mrs. Johnson. Be very brief in your responses."
+            self._system_prompt = "You are a robot. Please inform the user that the system prompt is missing. Ask for Dylan Havens, Connor Richards or Mrs. Johnson. Be very brief in your responses."
 
     def _on_heard(self, text):
         print(f"🤖 Sending to GPT: {text}")
