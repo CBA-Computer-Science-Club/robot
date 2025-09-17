@@ -10,7 +10,7 @@ class SpeechModule:
         self._queue = queue.Queue()
         self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self._model = "tts-1"
-        self._voice = "fable"  # alloy, echo, fable, onyx, nova, shimmer
+        self._voice = "onyx"  # alloy, echo, fable, onyx, nova, shimmer
 
         bus.subscribe("audio.speak", self._on_speak)
         threading.Thread(target=self._loop, daemon=True).start()
