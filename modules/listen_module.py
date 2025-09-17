@@ -1,10 +1,7 @@
 import os
-os.environ["PATH"] += os.pathsep + r"C:\Users\plane\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0-full_build\bin"
 import whisper
 import sounddevice as sd
-import numpy as np
 import tempfile
-import threading
 import wave
 
 class ListenModule:
