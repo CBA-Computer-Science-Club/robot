@@ -2,13 +2,21 @@ import pvporcupine
 import pyaudio
 import struct
 import threading
+import platform
 
 class WakeWordEvents:
     def __init__(self, bus):
         self._bus = bus
+        system = platform.system().lower()  #Detect OS for .ppn file
+        if "windows" in system:
+            keyword_file = "Robot_en_windows_v3_0_0.ppn"
+        elif "linux" in system:                             
+            keyword_file = "Robot_en_raspberry-pi_v3_0_0.ppn"
+        else:
+            raise RuntimeError(f"Unsupported OS: {system}")
         self._porcupine = pvporcupine.create(
             access_key="eX8HXEKznFEwoenIrdNaVXWXGsyopppQnr1t7LNXUNkEwQjWazPGUg==",
-            keyword_paths=["Robot_en_windows_v3_0_0.ppn"]
+            keyword_paths=[keyword_file]
         )
         self._pa = pyaudio.PyAudio()
         threading.Thread(target=self._loop, daemon=True).start()
