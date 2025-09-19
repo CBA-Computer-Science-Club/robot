@@ -85,4 +85,4 @@ Listeners receive event payloads as keyword arguments.
 
 ## License
 
-Add your license here.
+Add the license here
