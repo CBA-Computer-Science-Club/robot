@@ -1,6 +1,5 @@
 import os
 import threading
-import time
 import json
 from datetime import datetime, timedelta
 from openai import OpenAI
