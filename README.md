@@ -82,7 +82,3 @@ Listeners receive event payloads as keyword arguments.
   model name in `gpt_module.py` is supported by your account.
 - For audio problems, verify the speech modules are running and broadcasting
   `audio.heard` and `audio.speak` events.
-
-## License
-
-Add the license here
