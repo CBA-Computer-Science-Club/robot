@@ -10,10 +10,8 @@ class WakeWordEvents:
         system = platform.system().lower()  #Detect OS for .ppn file
         if "windows" in system:
             keyword_file = "Robot_en_windows_v3_0_0.ppn"
-        elif "linux" in system:                             #NEED FILES
-            keyword_file = "Robot_en_linux_v3_0_0.ppn"
-        elif "darwin" in system:  # macOS
-            keyword_file = "Robot_en_mac_v3_0_0.ppn"
+        elif "linux" in system:                             
+            keyword_file = "Robot_en_raspberry-pi_v3_0_0.ppn"
         else:
             raise RuntimeError(f"Unsupported OS: {system}")
         self._porcupine = pvporcupine.create(

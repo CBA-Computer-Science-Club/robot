@@ -16,7 +16,9 @@ class GPTModule:
 
         self._handlers = {
             "move_forward": self._handle_move_forward,
-            "turn_left": self._handle_turn_left
+            "turn_left": self._handle_turn_left,
+            "turn_right": self._handle_turn_right,
+            "reset_conversation": self._handle_reset_conversation,
         }
 
         try:
@@ -75,6 +77,10 @@ class GPTModule:
     def _handle_turn_left(self, degrees):
         print(f"↪️ Turning left {degrees}°")
         self._bus.broadcast("robot.turn.left", degrees=degrees)
+        
+    def _handle_turn_right(self, degrees):
+        print(f"↩️ Turning right {degrees}°")
+        self._bus.broadcast("robot.turn.right", degrees=degrees)
     
     def _handle_reset_conversation(self):
         print("🔄 Resetting conversation context (manual)")
