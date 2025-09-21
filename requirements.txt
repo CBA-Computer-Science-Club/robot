@@ -8,3 +8,4 @@ sounddevice
 playsound3
 pvporcupine
 pyaudio
+RPi.GPIO
