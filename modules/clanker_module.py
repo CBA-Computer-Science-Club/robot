@@ -16,4 +16,4 @@ class ClankerModule:
             if now - self._last_response < self._cooldown:
                 return
             self._last_response = now
-            self._bus.broadcast("audio.speak", text="Fuck you.")
+            self._bus.broadcast("audio.speak", text="Beep boop! That's not very nice!")
