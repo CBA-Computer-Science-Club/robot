@@ -41,3 +41,63 @@ TOOLS = [
         }
     }
 ]
+
+TOOLS.extend([
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_add",
+            "description": "Store a short piece of information in the robot's memory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "Unique key for the memory"},
+                    "value": {"type": "string", "description": "The value to remember"}
+                },
+                "required": ["key", "value"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_get",
+            "description": "Retrieve a memory by key.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "Key of the memory to retrieve"}
+                },
+                "required": ["key"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_search",
+            "description": "Search memories by a query string.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Partial text to search for"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_forget",
+            "description": "Remove a memory by key.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "description": "Key to forget"}
+                },
+                "required": ["key"]
+            }
+        }
+    },
+])
