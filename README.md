@@ -11,7 +11,7 @@ minimal and intended for local development on Raspberry Pi / desktop systems.
   to call structured functions that map to robot actions.
 - Simple `EventBus` for publishing and subscribing to events across modules.
 - Pluggable modules for listening, speaking and robot actions.
- - Persistent memory tools: `modules/memory_module.py` provides simple
+- Persistent memory tools: `modules/memory_module.py` provides simple
    file-backed memory (saved to `resources/memory.json`) and tool-backed
    events so the assistant can remember and recall facts.
 
@@ -38,6 +38,7 @@ python main.py
 ```
 
 Note: This project expects a small set of resource files to be present:
+
 - `resources/system_prompt.txt` — system prompt used to steer the assistant
 
 ## Configuration

@@ -36,6 +36,23 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "turn_right",
+            "description": "Turn the robot right by a specified number of degrees.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "degrees": {
+                        "type": "number",
+                        "description": "Degrees to turn"
+                    }
+                },
+                "required": ["degrees"]
+            }
+        }  
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "reset_conversation",
             "description": "Clear the current conversation history/context and start a new one.",
         }
