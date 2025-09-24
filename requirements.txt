@@ -1,0 +1,11 @@
+# Requirements inferred from imports in the repository.
+# Verify versions for your environment (Raspberry Pi may need arm-specific builds).
+openai
+whisper
+torch
+numpy
+sounddevice
+playsound3
+pvporcupine
+pyaudio
+RPi.GPIO
