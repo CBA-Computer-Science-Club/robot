@@ -1,0 +1,5 @@
+string key
+---
+bool found
+string value
+string message

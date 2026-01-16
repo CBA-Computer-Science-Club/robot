@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>memory_service</name>
+  <version>0.1.0</version>
+  <description>File-backed memory service</description>
+  <maintainer email="you@example.com">You</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>rosidl_default_generators</depend>
+  <depend>nlohmann_json</depend>
+</package>
