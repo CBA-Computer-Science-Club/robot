@@ -1,0 +1,20 @@
+# student_vision (ROS 2 Jazzy)
+
+**Disabled by default.** This adapter subscribes to `sensor_msgs/msg/Image` on `/camera/image_raw` **only** with `enabled:=true`. It publishes `std_msgs/msg/String` JSON on relative `people/identity`: `{"person_id":"alice","source":"camera","bbox":[x,y,w,h]}` or `{"person_id":null,"source":"camera","bbox":null}`. IDs are local enrollment identifiers; downstream consumers must not treat arbitrary ROS publishers as authenticated. Zero faces, multiple faces, low-distance confidence failures and ambiguous matches yield `null`. Never subscribe to an untrusted identity/enrollment topic. Clear downstream context on `null`, and set an independent timeout if frames stop.
+
+Implementation uses OpenCV Haar frontal-face detection and **OpenCV contrib** LBPH matching against a locally stored normalized 96×96 grayscale PNG for each enrolled person. `maximum_distance` defaults to 60 (lower LBPH distance is better), `minimum_margin` defaults to 15; both are **heuristics, not calibrated guarantees**. False matches remain possible; never use identity for authorization or consequential decisions. Detection can fail due to lighting, orientation or occlusion. This is not liveness detection. Supply a more capable reviewed recognizer if your use requires it.
+
+## Installation / runtime
+
+On Ubuntu 24.04 arm64 / ROS 2 Jazzy, install ROS package dependencies via `rosdep install --from-paths src --ignore-src -r -y` then `colcon build --packages-select student_vision`; source `install/setup.bash`. Runtime **also requires** a compatible `cv2.face.LBPHFaceRecognizer_create` from a matching OpenCV-contrib build and `cv2.data.haarcascades` frontal cascade. Some distro `python3-opencv` builds omit `cv2.face`; verify with `python3 -c 'import cv2,os; print(cv2.__version__, hasattr(cv2,"face"), os.path.isfile(cv2.data.haarcascades+"haarcascade_frontalface_default.xml"))'`. An observed Windows OpenCV-contrib 5.0 wheel lacked cascade XML and failed closed; OpenCV-contrib 4.12 passed the included LBPH smoke test. If your target lacks either component, build/install a compatible OpenCV-contrib Python binding **with Haar data files** for the ROS Python interpreter (avoid mixing incompatible pip/apt OpenCV binaries). Enabled startup fails closed when unavailable. No claim of arm64 wheel availability or tested arm64 runtime. Raw input supports **rgb8, bgr8, mono8** (including row padding), not compressed/JPEG/Bayer/depth; configure camera accordingly.
+
+```bash
+ros2 run student_vision student_vision_manage enroll --person-id alice --image /secure/alice.jpg --consent
+ros2 run student_vision student_vision_node --ros-args -p enabled:=true -p camera_topic:=/camera/image_raw
+ros2 topic echo /people/identity
+ros2 run student_vision student_vision_manage delete --person-id alice
+```
+
+`--consent` means you verified **the person's explicit permission**; enrollment reads a **local photo** with exactly one detected frontal face and never stores the original. The CLI has no ROS enrollment endpoint. The only stored data are `~/.local/share/robot/student_vision/alice.png` (face biometric template) and `alice.json` (consent marker). Override both CLI and node with `--data-dir DIR` (CLI option **before** `enroll`/`delete`) and `-p data_dir:=DIR` respectively. IDs: 1–64 ASCII alphanumeric/underscore/hyphen, starting alphanumeric. Revocation removes the metadata before the image, and the node reloads authorizations on each image callback; already published identities and backups cannot be recalled. Deletion is not secure erasure on SSD/backups; remove backups separately and protect the directory, camera topics and ROS graph with OS permissions/ROS security. No network API, background sync or topic-based enrollment is provided.
+
+Run host-only unit tests (ROS/OpenCV absent on Windows): `PYTHONPATH='ros2_ws/src/student_vision;ros2_ws/src/feature_plugins' python -m unittest discover -s ros2_ws/src/student_vision/test -p 'test_*.py'` (Windows shell; use colon on Linux). ROS integration, actual OpenCV matcher and Jazzy arm64 build require a target machine.

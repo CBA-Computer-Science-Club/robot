@@ -1,4 +1,6 @@
+string person_id
 string key
+bool consent
 ---
 bool found
 string value

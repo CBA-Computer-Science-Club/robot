@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(motor_safety_standalone LANGUAGES CXX)
+enable_testing()
+add_executable(motor_safety_test motor_safety_test.cpp)
+target_compile_features(motor_safety_test PRIVATE cxx_std_17)
+target_include_directories(motor_safety_test PRIVATE ../include)
+add_test(NAME motor_safety_test COMMAND motor_safety_test)
