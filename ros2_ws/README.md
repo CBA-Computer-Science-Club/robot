@@ -8,7 +8,7 @@ See [repository README](../README.md) for installation and hardware safety. The 
 LiDAR driver -> /scan ---------+-> SLAM Toolbox -> /map + map->odom
 encoder/IMU driver -> /odom ---+-> Nav2 -> /cmd_vel -> motor_controller -> H-bridge
 camera driver -> /camera/image_raw -> student_vision -> /people/identity (opt-in)
-microphone/STT -> /audio/heard -> gpt_bridge <-> local LLM HTTP endpoint
+microphone/STT -> /audio/heard -> gpt_bridge <-> local LLM / opt-in Anthropic or OpenAI API
                                         |       <-> memory_service (explicit opt-in)
                                         +-> /robot/say -> external TTS/speaker
 feature_plugins -> allowlisted Python feature nodes (disabled by default)
@@ -27,7 +27,7 @@ mkdir -p "$HOME/.local/share/robot" && chmod 700 "$HOME/.local/share/robot"
 ros2 launch robot_bringup robot.launch.py memory_path:="$HOME/.local/share/robot/memories.json"
 ```
 
-Launch defaults: `armed:=False`, `navigation:=False`, `camera:=False`, `plugins:=False`. `memory_path` chooses persistent local JSON, `model` chooses a model **already installed** in the loopback inference server. Launching `camera:=true` starts the vision node with `enabled:=true` but requires camera/OpenCV configuration and consented enrollments. Launching `plugins:=true` starts the host with an empty allowlist; install/review/approve plugins before expecting output. `gpt_bridge` defaults to a localhost OpenAI-compatible endpoint but does not launch or install a server or weights. For production configure memory in a private persistent directory with file permissions and isolate ROS graph access; see each package's README.
+Launch defaults: `armed:=False`, `navigation:=False`, `camera:=False`, `plugins:=False`. `memory_path` chooses persistent local JSON. `provider` defaults to `local`; empty `model` and `endpoint` choose that provider's defaults (local: `llama3.2` and loopback HTTP). Local models must already be installed in the inference server. Cloud selections `anthropic` and `openai` require `allow_cloud_api:=true` and an inherited environment key, not a ROS/launch secret parameter. `max_tokens` bounds cloud output (default 256). Saved facts are excluded from cloud requests unless `allow_cloud_memory:=true` and person/session memory consent both permit them. See [provider setup](src/gpt_bridge/README.md) for Claude/OpenAI usage. Launching `camera:=true` starts the vision node with `enabled:=true` but requires camera/OpenCV configuration and consented enrollments. Launching `plugins:=true` starts the host with an empty allowlist; install/review/approve plugins before expecting output. `gpt_bridge` defaults to a localhost OpenAI-compatible endpoint but does not launch or install a server or weights. For production configure memory in a private persistent directory with file permissions and isolate ROS graph access; see each package's README.
 
 ### Explicit person memory
 
@@ -39,6 +39,7 @@ Launch defaults: `armed:=False`, `navigation:=False`, `camera:=False`, `plugins:
 python -m unittest discover -s src/motor_controller/tests -p 'test_*.py'
 python -m unittest discover -s src/robot_bringup/tests -p 'test_*.py'
 python -m unittest discover -s src/memory_service/tests -p 'test_interfaces.py'
+python -m unittest discover -s src/gpt_bridge/tests -p 'test_*.py'
 PYTHONPATH=src/student_vision:src/feature_plugins python -m unittest discover -s src/student_vision/test -p 'test_*.py'
 PYTHONPATH=src/student_vision:src/feature_plugins python -m unittest discover -s src/feature_plugins/test -p 'test_*.py'
 cmake -S src/motor_controller/tests -B /tmp/motor-tests && cmake --build /tmp/motor-tests && ctest --test-dir /tmp/motor-tests --output-on-failure

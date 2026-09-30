@@ -10,3 +10,8 @@ ros2_ws/log/
 **/build/
 **/dist/
 *.json.tmp*
+
+# Local secret environment files (not automatically loaded by the bridge)
+.env
+.env.*
+!.env.example

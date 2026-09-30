@@ -34,6 +34,75 @@ std::string build_request(const std::string & model, const std::string & utteran
                         })}}.dump();
 }
 
+std::string provider_endpoint(const std::string & provider, const std::string & configured,
+                              bool allow_cloud_api) {
+  if (provider == "anthropic" || provider == "openai") {
+    if (!allow_cloud_api) throw std::invalid_argument("cloud API requires explicit opt-in");
+    const std::string endpoint = provider == "anthropic" ?
+        "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions";
+    if (!configured.empty() && configured != endpoint) throw std::invalid_argument("unapproved cloud endpoint");
+    return endpoint;
+  }
+  if (provider != "local") throw std::invalid_argument("unsupported provider");
+  const auto url = configured.empty() ? std::string("http://127.0.0.1:11434/v1/chat/completions") : configured;
+  if (url.rfind("http://", 0) != 0 || url.find_first_of("@?#\\\r\n\t ") != std::string::npos)
+    throw std::invalid_argument("invalid local endpoint");
+  const auto slash = url.find('/', 7);
+  const auto authority = url.substr(7, slash == std::string::npos ? std::string::npos : slash - 7);
+  const auto colon = authority.find(':');
+  const auto host = authority.substr(0, colon);
+  const auto port = colon == std::string::npos ? std::string{} : authority.substr(colon + 1);
+  if (slash == std::string::npos || (host != "localhost" && host != "127.0.0.1") ||
+      port.empty() || port.size() > 5 || port.find_first_not_of("0123456789") != std::string::npos ||
+      std::stoi(port) < 1 || std::stoi(port) > 65535)
+    throw std::invalid_argument("endpoint must be loopback HTTP with valid port");
+  return url;
+}
+
+std::vector<std::string> provider_headers(const std::string & provider, const std::string & api_key,
+                                         const std::string & workspace_id) {
+  std::vector<std::string> headers{"Content-Type: application/json"};
+  if (provider == "local") return headers; // Never forward a cloud credential locally.
+  if (provider != "anthropic" && provider != "openai") throw std::invalid_argument("unsupported provider");
+  const auto safe = [](const std::string & value) {
+    return !value.empty() && value.size() <= 4096 &&
+      std::all_of(value.begin(), value.end(), [](unsigned char c) { return c > 32 && c < 127; });
+  };
+  if (!safe(api_key)) throw std::invalid_argument("missing or invalid API credential");
+  if (provider == "openai") {
+    headers.push_back(std::string("Authorization") + ": " + "Bearer" + " " + api_key);
+    return headers;
+  }
+  headers.push_back("Authorization: Bearer " + api_key);
+  headers.push_back("anthropic-version: 2023-06-01");
+  if (!workspace_id.empty()) {
+    if (!safe(workspace_id)) throw std::invalid_argument("invalid workspace ID");
+    headers.push_back("anthropic-workspace-id: " + workspace_id);
+  }
+  return headers;
+}
+
+std::string build_provider_request(const std::string & provider, const std::string & model,
+    const std::string & utterance, const std::vector<std::string> & memories,
+    std::size_t max_memories, std::size_t max_context_chars, int max_tokens,
+    bool allow_cloud_memory) {
+  if (provider == "local") return build_request(model, utterance, memories, max_memories, max_context_chars);
+  if (provider != "anthropic" && provider != "openai") throw std::invalid_argument("unsupported provider");
+  if (max_tokens < 1 || max_tokens > 4096) throw std::invalid_argument("invalid max_tokens");
+  // Reuse the bounded prompt but convert to the native Messages API schema.
+  auto local = nlohmann::json::parse(build_request(model, utterance,
+      allow_cloud_memory ? memories : std::vector<std::string>{}, max_memories, max_context_chars));
+  if (provider == "openai") {
+    local["messages"][0]["role"] = "developer";
+    local["max_completion_tokens"] = max_tokens;
+    local["store"] = false;
+    return local.dump();
+  }
+  return nlohmann::json{{"model", model}, {"stream", false}, {"max_tokens", max_tokens},
+      {"system", local.at("messages").at(0).at("content")},
+      {"messages", nlohmann::json::array({local.at("messages").at(1)})}}.dump();
+}
+
 std::string parse_reply(const std::string & response) {
   const auto parsed = nlohmann::json::parse(response);
   const auto & choices = parsed.at("choices");
@@ -43,6 +112,23 @@ std::string parse_reply(const std::string & response) {
   const auto text = trim(content.get<std::string>());
   if (text.empty()) throw std::runtime_error("empty text content");
   return text;
+}
+
+std::string parse_provider_reply(const std::string & provider, const std::string & response) {
+  if (provider == "local" || provider == "openai") return parse_reply(response);
+  if (provider != "anthropic") throw std::invalid_argument("unsupported provider");
+  const auto parsed = nlohmann::json::parse(response);
+  if (parsed.contains("error")) throw std::runtime_error("provider error");
+  const auto & blocks = parsed.at("content");
+  if (!blocks.is_array()) throw std::runtime_error("missing content blocks");
+  std::string reply;
+  for (const auto & block : blocks) {
+    if (block.value("type", "") != "text") continue; // Never speak thinking or tool blocks.
+    const auto text = trim(block.at("text").get<std::string>());
+    if (!text.empty()) { if (!reply.empty()) reply += '\n'; reply += text; }
+  }
+  if (reply.empty()) throw std::runtime_error("empty text content");
+  return reply;
 }
 
 std::optional<std::string> parse_remember(const std::string & utterance,

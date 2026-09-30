@@ -13,6 +13,15 @@ std::string build_request(const std::string & model, const std::string & utteran
                           const std::vector<std::string> & memories,
                           std::size_t max_memories, std::size_t max_context_chars);
 std::string parse_reply(const std::string & response);
+std::string provider_endpoint(const std::string & provider, const std::string & configured,
+                              bool allow_cloud_api);
+std::vector<std::string> provider_headers(const std::string & provider, const std::string & api_key,
+                                         const std::string & workspace_id);
+std::string parse_provider_reply(const std::string & provider, const std::string & response);
+std::string build_provider_request(const std::string & provider, const std::string & model,
+    const std::string & utterance, const std::vector<std::string> & memories,
+    std::size_t max_memories, std::size_t max_context_chars, int max_tokens,
+    bool allow_cloud_memory);
 std::optional<std::string> parse_remember(const std::string & utterance,
                                           std::size_t max_fact_chars);
 // Returns empty for an invalid person ID. An identity message is a hint, not proof.
