@@ -10,6 +10,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -30,17 +31,12 @@ constexpr std::size_t kMaxContextBytes = 900;
 constexpr std::size_t kMaxReplyBytes = 2048;
 constexpr std::size_t kMaxHttpBytes = 65536;
 
-// No external hosts, URL credentials, query strings, redirects or proxy access.
-bool is_local_url(const std::string & url) {
-  const auto end = url.find('/', 7);
-  const auto authority = url.substr(7, end == std::string::npos ? std::string::npos : end - 7);
-  const auto host_end = authority.find(':');
-  const auto host = authority.substr(0, host_end);
-  if (url.rfind("http://", 0) != 0 || url.find_first_of("@?#") != std::string::npos ||
-      end == std::string::npos || host_end == std::string::npos ||
-      (host != "localhost" && host != "127.0.0.1")) return false;
-  const auto port = authority.substr(host_end + 1);
-  return !port.empty() && port.find_first_not_of("0123456789") == std::string::npos;
+
+
+template<typename T>
+void set_option(CURL * handle, CURLoption option, T value) {
+  if (curl_easy_setopt(handle, option, value) != CURLE_OK)
+    throw std::runtime_error("HTTP option configuration failed");
 }
 
 size_t receive(char * data, size_t size, size_t count, void * context) {
@@ -56,15 +52,37 @@ size_t receive(char * data, size_t size, size_t count, void * context) {
 class GptBridge : public rclcpp::Node {
 public:
   GptBridge() : Node("gpt_bridge") {
-    endpoint_ = declare_parameter<std::string>("endpoint", "http://127.0.0.1:11434/v1/chat/completions");
-    model_ = declare_parameter<std::string>("model", "llama3.2");
+    provider_ = declare_parameter<std::string>("provider", "local");
+    const bool allow_cloud_api = declare_parameter<bool>("allow_cloud_api", false);
+    allow_cloud_memory_ = declare_parameter<bool>("allow_cloud_memory", false);
+    endpoint_ = gpt_bridge::provider_endpoint(provider_,
+        declare_parameter<std::string>("endpoint", ""), allow_cloud_api);
+    model_ = declare_parameter<std::string>("model", "");
+    if (model_.empty()) {
+      if (provider_ == "anthropic") model_ = "claude-haiku-4-5";
+      else if (provider_ == "openai") model_ = "gpt-4.1-mini";
+      else model_ = "llama3.2";
+    }
+    max_tokens_ = declare_parameter<int>("max_tokens", 256);
+    if (max_tokens_ < 1 || max_tokens_ > 4096) throw std::invalid_argument("invalid max_tokens");
+    if (provider_ == "anthropic") {
+      const char * key = std::getenv("ANTHROPIC_API_KEY");
+      const char * workspace = std::getenv("ANTHROPIC_WORKSPACE_ID");
+      api_key_ = key ? key : "";
+      workspace_id_ = workspace ? workspace : "";
+    } else if (provider_ == "openai") {
+      const char * key = std::getenv("OPENAI_API_KEY");
+      api_key_ = key ? key : "";
+    }
+    // Fail before subscribing when a cloud key is missing or unsafe. Secrets are never ROS parameters.
+    (void)gpt_bridge::provider_headers(provider_, api_key_, workspace_id_);
     http_timeout_ms_ = std::clamp(declare_parameter<int>("http_timeout_ms", 12000), 1000, 60000);
     service_timeout_ms_ = std::clamp(declare_parameter<int>("memory_timeout_ms", 800), 100, 5000);
     memory_consent_ = declare_parameter<bool>("memory_consent", false);
     consented_person_id_ = declare_parameter<std::string>("consented_person_id", "");
     identity_mode_ = declare_parameter<std::string>("identity_mode", "disabled");
     identity_ttl_ms_ = std::clamp(declare_parameter<int>("identity_ttl_ms", 15000), 1000, 60000);
-    if (!is_local_url(endpoint_)) throw std::invalid_argument("endpoint must be loopback HTTP with explicit port");
+
     if (model_.empty() || model_.size() > 128) throw std::invalid_argument("invalid model");
     if (!consented_person_id_.empty() && gpt_bridge::parse_identity(consented_person_id_) != consented_person_id_)
       throw std::invalid_argument("invalid consented_person_id");
@@ -86,7 +104,9 @@ public:
         latest_identity_ = gpt_bridge::parse_identity(msg->data);
         identity_seen_at_ = std::chrono::steady_clock::now();
       });
-    RCLCPP_INFO(get_logger(), "Local conversation bridge ready (memory disabled unless explicitly authorized).");
+    RCLCPP_INFO(get_logger(), "Conversation bridge ready (memory disabled unless explicitly authorized).");
+    if (provider_ != "local")
+      RCLCPP_WARN(get_logger(), "Cloud conversation enabled: transcripts leave this device; saved memories require separate opt-in.");
   }
 
 private:
@@ -153,32 +173,39 @@ private:
     return load_facts(verified) && verified == next;
   }
 
-  std::string local_completion(const std::string & body) {
+  std::string completion(const std::string & body) {
     if (body.size() > 16384) throw std::runtime_error("request too large");
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(curl_easy_init(), curl_easy_cleanup);
     if (!curl) throw std::runtime_error("HTTP initialization failed");
-    curl_slist * raw_headers = curl_slist_append(nullptr, "Content-Type: application/json");
-    if (!raw_headers) throw std::runtime_error("HTTP header allocation failed");
-    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(raw_headers, curl_slist_free_all);
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(nullptr, curl_slist_free_all);
+    for (const auto & header : gpt_bridge::provider_headers(provider_, api_key_, workspace_id_)) {
+      auto * next = curl_slist_append(headers.get(), header.c_str());
+      if (!next) throw std::runtime_error("HTTP header allocation failed");
+      headers.release();
+      headers.reset(next);
+    }
     std::string response;
-    curl_easy_setopt(curl.get(), CURLOPT_URL, endpoint_.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
-    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, receive);
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT_MS, 1500L);
-    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, static_cast<long>(http_timeout_ms_));
-    curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 0L);
-    curl_easy_setopt(curl.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTP);
-    curl_easy_setopt(curl.get(), CURLOPT_PROXY, "");
+    set_option(curl.get(), CURLOPT_URL, endpoint_.c_str());
+    set_option(curl.get(), CURLOPT_POST, 1L);
+    set_option(curl.get(), CURLOPT_HTTPHEADER, headers.get());
+    set_option(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
+    set_option(curl.get(), CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    set_option(curl.get(), CURLOPT_WRITEFUNCTION, receive);
+    set_option(curl.get(), CURLOPT_WRITEDATA, &response);
+    set_option(curl.get(), CURLOPT_CONNECTTIMEOUT_MS, provider_ == "local" ? 1500L : 5000L);
+    set_option(curl.get(), CURLOPT_TIMEOUT_MS, static_cast<long>(http_timeout_ms_));
+    set_option(curl.get(), CURLOPT_NOSIGNAL, 1L);
+    set_option(curl.get(), CURLOPT_FOLLOWLOCATION, 0L);
+    set_option(curl.get(), CURLOPT_PROTOCOLS,
+                     static_cast<long>(provider_ == "local" ? CURLPROTO_HTTP : CURLPROTO_HTTPS));
+    set_option(curl.get(), CURLOPT_SSL_VERIFYPEER, 1L);
+    set_option(curl.get(), CURLOPT_SSL_VERIFYHOST, 2L);
+    set_option(curl.get(), CURLOPT_PROXY, "");
     const auto code = curl_easy_perform(curl.get());
     long http_status = 0;
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_status);
-    if (code != CURLE_OK || http_status != 200) throw std::runtime_error("local model HTTP failure");
-    auto reply = gpt_bridge::parse_reply(response);
+    if (code != CURLE_OK || http_status != 200) throw std::runtime_error("model HTTP failure");
+    auto reply = gpt_bridge::parse_provider_reply(provider_, response);
     if (reply.size() > kMaxReplyBytes) throw std::runtime_error("model reply too large");
     return reply;
   }
@@ -209,18 +236,18 @@ private:
       }
     }
     std::vector<std::string> facts;
-    if (memory_authorized()) {
+    if (memory_authorized() && (provider_ == "local" || allow_cloud_memory_)) {
       std::string stored;
       if (load_facts(stored)) facts = gpt_bridge::read_facts(stored, kMaxContextFacts, 300);
       else { RCLCPP_WARN(get_logger(), "Memory read timed out or unavailable.");
              say("Memory is unavailable; continuing without it."); }
     }
     try {
-      say(local_completion(gpt_bridge::build_request(model_, utterance, facts,
-                                                      kMaxContextFacts, kMaxContextBytes)));
+      say(completion(gpt_bridge::build_provider_request(provider_, model_, utterance, facts,
+          kMaxContextFacts, kMaxContextBytes, max_tokens_, allow_cloud_memory_)));
     } catch (const std::exception &) {
-      RCLCPP_ERROR(get_logger(), "Local model request failed.");
-      say("Sorry, I can't reach my local language model right now.");
+      RCLCPP_ERROR(get_logger(), "Model request failed (response details withheld).");
+      say("Sorry, I can't reach my language model right now.");
     }
   }
 
@@ -232,14 +259,19 @@ private:
   std::mutex identity_mutex_;
   std::string latest_identity_;
   std::chrono::steady_clock::time_point identity_seen_at_{};
-  std::string endpoint_, model_, consented_person_id_, identity_mode_;
-  int http_timeout_ms_{}, service_timeout_ms_{}, identity_ttl_ms_{};
-  bool memory_consent_{};
+  std::string provider_, endpoint_, model_, consented_person_id_, identity_mode_;
+  std::string api_key_, workspace_id_; // In-memory only; never log or publish these.
+  int http_timeout_ms_{}, service_timeout_ms_{}, identity_ttl_ms_{}, max_tokens_{};
+  bool memory_consent_{}, allow_cloud_memory_{};
 };
 
 int main(int argc, char ** argv) {
   rclcpp::init(argc, argv);
-  curl_global_init(CURL_GLOBAL_DEFAULT);
+  if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+    RCLCPP_ERROR(rclcpp::get_logger("gpt_bridge"), "HTTP initialization failed.");
+    rclcpp::shutdown();
+    return 1;
+  }
   int result = 0;
   try {
     rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 3);

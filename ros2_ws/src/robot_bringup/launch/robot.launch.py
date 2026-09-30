@@ -16,6 +16,10 @@ def generate_launch_description():
     memory_path = LaunchConfiguration('memory_path')
     model = LaunchConfiguration('model')
     endpoint = LaunchConfiguration('endpoint')
+    provider = LaunchConfiguration('provider')
+    allow_cloud_api = LaunchConfiguration('allow_cloud_api')
+    allow_cloud_memory = LaunchConfiguration('allow_cloud_memory')
+    max_tokens = LaunchConfiguration('max_tokens')
     memory_consent = LaunchConfiguration('memory_consent')
     consented_person_id = LaunchConfiguration('consented_person_id')
     identity_mode = LaunchConfiguration('identity_mode')
@@ -27,17 +31,27 @@ def generate_launch_description():
         DeclareLaunchArgument('camera', default_value='False', description='Start opt-in face recognition'),
         DeclareLaunchArgument('plugins', default_value='False', description='Start allowlisted feature plugins'),
         DeclareLaunchArgument('memory_path', default_value='memory_service.json', description='Private persistent memory file path'),
-        DeclareLaunchArgument('model', default_value='llama3.2', description='Model already installed in local inference runtime'),
-        DeclareLaunchArgument('endpoint', default_value='http://127.0.0.1:11434/v1/chat/completions'),
+        DeclareLaunchArgument('provider', default_value='local', description='local, anthropic, or openai'),
+        DeclareLaunchArgument('allow_cloud_api', default_value='False', description='Allow transcripts to leave this device'),
+        DeclareLaunchArgument('allow_cloud_memory', default_value='False', description='Also allow consented saved facts in cloud context'),
+        DeclareLaunchArgument('max_tokens', default_value='256', description='Cloud output token limit (1-4096)'),
+        DeclareLaunchArgument('model', default_value='', description='Empty selects provider default; override with a supported model ID'),
+        DeclareLaunchArgument('endpoint', default_value='', description='Empty selects provider endpoint; cloud URLs are allowlisted'),
         DeclareLaunchArgument('memory_consent', default_value='False', description='Operator-attested consent for this session'),
         DeclareLaunchArgument('consented_person_id', default_value='', description='Operator-verified consenting person ID'),
         DeclareLaunchArgument('identity_mode', default_value='disabled', description='disabled, operator_bound, or authenticated trusted_topic'),
         Node(package='memory_service', executable='memory_service_node', output='screen',
              parameters=[{'storage_path': memory_path}]),
         Node(package='gpt_bridge', executable='gpt_bridge_node', output='screen',
-             parameters=[{'model': model, 'endpoint': endpoint,
+             parameters=[{'model': ParameterValue(model, value_type=str),
+                          'endpoint': ParameterValue(endpoint, value_type=str),
+                          'provider': ParameterValue(provider, value_type=str),
+                          'allow_cloud_api': ParameterValue(allow_cloud_api, value_type=bool),
+                          'allow_cloud_memory': ParameterValue(allow_cloud_memory, value_type=bool),
+                          'max_tokens': ParameterValue(max_tokens, value_type=int),
                           'memory_consent': ParameterValue(memory_consent, value_type=bool),
-                          'consented_person_id': consented_person_id, 'identity_mode': identity_mode}]),
+                          'consented_person_id': ParameterValue(consented_person_id, value_type=str),
+                          'identity_mode': identity_mode}]),
         Node(package='motor_controller', executable='motor_controller_node', output='screen',
              parameters=[{'armed': ParameterValue(armed, value_type=bool)}]),
         Node(package='student_vision', executable='student_vision_node', output='screen',

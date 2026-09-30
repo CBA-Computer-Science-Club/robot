@@ -19,6 +19,12 @@ if(BUILD_TESTING)
   enable_testing()
   add_executable(conversation_core_test tests/conversation_core_test.cpp)
   target_link_libraries(conversation_core_test conversation_core)
+  # Assertion-based tests must also execute in Release builds.
+  if(MSVC)
+    target_compile_options(conversation_core_test PRIVATE /UNDEBUG)
+  else()
+    target_compile_options(conversation_core_test PRIVATE -UNDEBUG)
+  endif()
   add_test(NAME conversation_core_test COMMAND conversation_core_test)
 endif()
 

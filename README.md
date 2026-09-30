@@ -9,7 +9,7 @@ A C++-first ROS 2 robot skeleton for a Raspberry Pi 5 running Ubuntu 24.04 arm64
 | `motor_controller` | C++ differential H-bridge driver; starts disarmed, demands fresh `/scan` and `/odom`, watchdog and latched ROS E-stop |
 | `robot_bringup` | Opt-in launch of Nav2/SLAM Toolbox, camera and plugins; actuator arming is separate |
 | `memory_service` | C++ persistent per-person, consent-gated memories |
-| `gpt_bridge` | C++ local OpenAI-compatible chat bridge from `/audio/heard` to `/robot/say` |
+| `gpt_bridge` | C++ local / Anthropic / OpenAI text chat bridge from `/audio/heard` to `/robot/say` |
 | `student_vision` | Camera identity adapter for explicitly enrolled people only |
 | `feature_plugins` | Allowlisted Python ROS feature plugins |
 | `terminal_input` | Text-only development conversation input; **not** voice recognition |
@@ -39,6 +39,6 @@ Motor GPIO pin defaults are 18/23 (left forward/reverse) and 24/25 (right forwar
 
 ## Conversation and privacy
 
-For text smoke tests run `ros2 run terminal_input terminal_input_node` in a second terminal and read `ros2 topic echo /robot/say`. To talk aloud, supply microphone STT publishing transcripts on `/audio/heard` and TTS consuming `/robot/say`; choose/measure on-device components for your latency budget. The LLM HTTP endpoint must be provided by a separately installed local inference service; **no model weights are shipped here**. Treat student identity and face embeddings as sensitive personal data: get explicit informed consent for enrollment and remembering, document retention/access/deletion, provide a no-recording mode, and obtain campus approval before deployment, especially for minors. Do not log transcripts, API keys or biometric images. Review local law and institutional policy.
+For text smoke tests run `ros2 run terminal_input terminal_input_node` in a second terminal and read `ros2 topic echo /robot/say`. To talk aloud, supply microphone STT publishing transcripts on `/audio/heard` and TTS consuming `/robot/say`; choose/measure on-device components for your latency budget. By default, the LLM endpoint comes from a separately installed local inference service; **no model weights are shipped here**. Alternatively select `provider:=anthropic` or `provider:=openai` with explicit `allow_cloud_api:=true` and the matching environment key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`). Saved-memory export requires the separate `allow_cloud_memory:=true` opt-in in addition to person/session consent. See [`gpt_bridge` setup](ros2_ws/src/gpt_bridge/README.md) for hidden key prompts and launch commands. Treat student identity and face embeddings as sensitive personal data: get explicit informed consent for enrollment and remembering, document retention/access/deletion, provide a no-recording mode, and obtain campus approval before deployment, especially for minors. Do not log transcripts, API keys or biometric images. Review local law and institutional policy.
 
 `ros2_ws/README.md` contains component interfaces and additional setup details. Development on this Windows machine can run Python/static tests; ROS 2 and real GPIO hardware are absent, so a Pi build, integration test and safety validation remain required.
