@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>terminal_input</name>
+  <version>0.1.0</version>
+  <description>Terminal input publisher (audio.heard)</description>
+  <maintainer email="you@example.com">You</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+</package>

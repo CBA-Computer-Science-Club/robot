@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(conversation_core_standalone LANGUAGES CXX)
+enable_testing()
+add_executable(conversation_core_test conversation_core_test.cpp ../src/conversation_core.cpp)
+target_compile_features(conversation_core_test PRIVATE cxx_std_17)
+target_include_directories(conversation_core_test PRIVATE ../include)
+add_test(NAME conversation_core_test COMMAND conversation_core_test)

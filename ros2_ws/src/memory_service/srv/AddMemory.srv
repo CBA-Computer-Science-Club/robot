@@ -1,0 +1,7 @@
+string person_id
+string key
+string value
+bool consent
+---
+bool success
+string message

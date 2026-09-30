@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>gpt_bridge</name>
+  <version>0.2.0</version>
+  <description>On-device OpenAI-compatible conversation bridge with opt-in contextual memory.</description>
+  <maintainer email="you@example.com">You</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>memory_service</depend>
+  <build_depend>libcurl-dev</build_depend>
+</package>
